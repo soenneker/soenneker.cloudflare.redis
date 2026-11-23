@@ -1,6 +1,6 @@
 # Soenneker.Cloudflare.Redis
 
-Run a single Redis 8.2 primary on Cloudflare Containers. API and background services use ordinary Redis commands over TLS. A Durable Object routes every connection to the same primary. Redis runs in memory and periodically saves its dataset to a private R2 bucket.
+Run a single Redis 8.2 primary on Cloudflare Containers. Redis clients connect over TLS. A Durable Object routes every connection to the same primary. Redis runs in memory and periodically saves its dataset to a private R2 bucket.
 
 ## Deploy
 
@@ -30,11 +30,11 @@ Use a Workers Paid account with Containers and a Spectrum-enabled zone that supp
 
 3. Put `R2_ENDPOINT` and `R2_BUCKET` in the Wrangler `vars` section. Set `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `REDIS_PASSWORD` as Wrangler secrets. Set `TLS_CERT_PEM` to the full certificate chain for the Redis hostname and `TLS_KEY_PEM` to the matching private key. Clients must trust the issuer. Supply the PEM contents with their original line breaks. Configure secrets with `npx wrangler secret put <NAME>` or the Cloudflare dashboard. Keep the secrets and RDB out of Git.
 
-4. Run `npm run deploy`. Configure a Spectrum TCP application for the Redis hostname and port with the deployed Worker as origin and TLS passthrough. The container terminates TLS. The private container control port (8080) is used only by the Durable Object. A five-minute cron keeps the primary active and checks for image changes. [Spectrum setup](https://developers.cloudflare.com/spectrum/how-to/route-tcp-traffic-to-a-worker/) · [Cloudflare image management](https://developers.cloudflare.com/containers/guides/image-management/)
+4. Run `npm run deploy`. Configure a Spectrum TCP application for the Redis hostname and port with the deployed Worker as origin and TLS passthrough. The container terminates TLS. The private container control port (8080) is used only by the Durable Object. A five-minute cron keeps the primary active and checks for image changes. [Spectrum setup](https://developers.cloudflare.com/spectrum/how-to/route-tcp-traffic-to-a-worker/) Â· [Cloudflare image management](https://developers.cloudflare.com/containers/guides/image-management/)
 
-## Connect the API and Engine
+## Connect a Redis client
 
-Use the same value for `Azure:Redis:ConnectionString` on both services. Supply the existing configuration key through your secret store. For example, with Spectrum listening on 6379 and a generated hexadecimal password:
+Configure your client with the Spectrum hostname and port, TLS enabled, and the configured Redis password. For example, a StackExchange.Redis connection string for port 6379 looks like this:
 
 ```text
 redis.example.com:6379,ssl=true,password=<password>,abortConnect=false
@@ -52,4 +52,4 @@ The endpoint supports StackExchange.Redis, Lua, TTLs, transactions, locks, lists
 
 ## Verify locally
 
-With Docker, Python 3, and the .NET 11 SDK available, run `python test/persistence.py`. It creates a temporary S3-compatible server, Redis containers with fresh filesystems, and a local TLS certificate. It exercises the same StackExchange.Redis, Flywheel and data-protection libraries used by the API and Engine, plus recovery after a crash, failed and successful updates, and graceful shutdown. Run `npx wrangler deploy --dry-run` to validate the Cloudflare bundle and Docker build.
+With Docker, Python 3, and the .NET 11 SDK available, run `python test/persistence.py`. It creates a temporary S3-compatible server, Redis containers with fresh filesystems, and a local TLS certificate. It checks Redis reads and writes over TLS with StackExchange.Redis and verifies persistence across crashes, failed and successful updates, and graceful shutdown. Run `npx wrangler deploy --dry-run` to validate the Cloudflare bundle and Docker build.
