@@ -1,0 +1,7 @@
+{
+  "name": "soenneker-cloudflare-redis",
+  "private": true,
+  "type": "module",
+  "scripts": { "deploy": "wrangler deploy" },
+  "devDependencies": { "wrangler": "4.167.0" }
+}
