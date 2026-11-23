@@ -22,4 +22,4 @@ jobs:
       - run: npm ci
       - run: node --test test/image-update.test.js
       - run: npx --no-install wrangler deploy --dry-run
-      - run: python3 test/persistence.py
+      - run: python3 test/cache.py

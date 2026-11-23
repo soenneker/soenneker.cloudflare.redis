@@ -12,6 +12,5 @@
         "images": { "redis": { "dockerfile": "./container/Dockerfile" } }
     }],
     "durable_objects": { "bindings": [{ "name": "REDIS_HOST", "class_name": "RedisHost" }] },
-    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RedisHost"] }],
-    "vars": { "R2_KEY": "redis/dump.rdb", "BACKUP_INTERVAL_SECONDS": "60" }
+    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RedisHost"] }]
 }

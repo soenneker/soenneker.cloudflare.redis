@@ -5,7 +5,7 @@ using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using StackExchange.Redis;
 
-string port = Environment.GetEnvironmentVariable("TEST_REDIS_PORT") ?? throw new InvalidOperationException("Run test/persistence.py");
+string port = Environment.GetEnvironmentVariable("TEST_REDIS_PORT") ?? throw new InvalidOperationException("Run test/cache.py");
 var options = ConfigurationOptions.Parse($"localhost:{port},ssl=true,abortConnect=true");
 options.Password = Environment.GetEnvironmentVariable("TEST_REDIS_PASSWORD");
 using var certificate = X509Certificate2.CreateFromPem(Environment.GetEnvironmentVariable("TEST_TLS_CERT"));
@@ -14,17 +14,8 @@ options.CertificateValidation += (_, presented, _, errors) =>
 
 using var redis = await ConnectionMultiplexer.ConnectAsync(options);
 var db = redis.GetDatabase();
-if (args.Contains("restored"))
-{
-    if (await db.HashGetAsync("sample:hash", "field") != "value" ||
-        await db.SortedSetScoreAsync("sample:sorted-set", "member") != 1 ||
-        await db.StreamLengthAsync("sample:stream") != 1)
-        throw new InvalidOperationException("Redis collections did not survive the update.");
-    return;
-}
-
-await db.StringSetAsync("dotnet", "persisted");
-if (await db.StringGetAsync("dotnet") != "persisted")
+await db.StringSetAsync("dotnet", "cached");
+if (await db.StringGetAsync("dotnet") != "cached")
     throw new InvalidOperationException("String round trip failed.");
 
 if (!await db.LockTakeAsync("lock", "owner", TimeSpan.FromSeconds(30)) || !await db.LockReleaseAsync("lock", "owner"))
