@@ -13,6 +13,7 @@ Use a Workers Paid account with Containers and a Spectrum-enabled zone that supp
    | `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` or the bucket's jurisdiction-specific S3 endpoint |
    | `R2_BUCKET` | Backup bucket name |
    | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Bucket-scoped credentials |
+   | `R2_SESSION_TOKEN` | Session token when using temporary R2 credentials. Renew all three credential fields and restart before expiry. |
    | `R2_KEY` | Snapshot object key, defaults to `redis/dump.rdb` |
 
 2. Build the image and initialize the backup **once**. The following command creates an empty RDB only if the object is absent. Supply the four required variables above in a local, git-ignored `.env.r2` file. Include `R2_KEY` if using a different object key.

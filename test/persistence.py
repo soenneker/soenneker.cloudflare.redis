@@ -41,13 +41,13 @@ def storage(code):
 
 
 def boot(interval):
-    run_image(options=("-d", "--name", SERVER, "-p", "127.0.0.1::6379"),
+    run_image(options=("-d", "--tmpfs", "/run", "--name", SERVER, "-p", "127.0.0.1::6379"),
               env={**ENV, "BACKUP_INTERVAL_SECONDS": str(interval)})
 
 
 def redis(*args, check=True):
     return docker("exec", "-e", "REDISCLI_AUTH=" + ENV["REDIS_PASSWORD"], SERVER,
-                  "redis-cli", "--tls", "--cacert", "/run/redis-service/tls.pem",
+                  "redis-cli", "--tls", "--cacert", "/opt/redis-runtime/tls.pem",
                   "--sni", "localhost", "-e", "--raw", *args, check=check)
 
 

@@ -18,6 +18,7 @@ class Snapshots:
             "s3", endpoint_url=os.environ["R2_ENDPOINT"], region_name="auto",
             aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
             aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+            aws_session_token=os.environ.get("R2_SESSION_TOKEN"),
             config=Config(connect_timeout=8, read_timeout=60,
                           retries={"mode": "standard", "total_max_attempts": 3},
                           request_checksum_calculation="when_required",

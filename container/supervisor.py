@@ -11,7 +11,7 @@ import time
 
 from snapshots import DUMP, Snapshots
 
-RUNTIME = Path("/run/redis-service")
+RUNTIME = Path("/opt/redis-runtime")
 SOCKET = str(RUNTIME / "redis.sock")
 stop = threading.Event()
 

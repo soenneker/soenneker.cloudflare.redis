@@ -24,7 +24,7 @@ export class RedisHost extends DurableObject {
         if (!container.running) {
             const env = {};
             for (const key of ["R2_ENDPOINT", "R2_BUCKET", "R2_KEY", "R2_ACCESS_KEY_ID",
-                "R2_SECRET_ACCESS_KEY", "REDIS_PASSWORD", "TLS_CERT_PEM", "TLS_KEY_PEM", "BACKUP_INTERVAL_SECONDS", "REDIS_MAXMEMORY_MIB"]) {
+                "R2_SESSION_TOKEN", "R2_SECRET_ACCESS_KEY", "REDIS_PASSWORD", "TLS_CERT_PEM", "TLS_KEY_PEM", "BACKUP_INTERVAL_SECONDS", "REDIS_MAXMEMORY_MIB"]) {
                 if (this.env[key]) env[key] = this.env[key];
             }
             container.start({ image: container.images.redis, instance: "standard-1", enableInternet: true, env });

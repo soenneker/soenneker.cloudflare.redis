@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3-venv ca
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/runtime \
     && /opt/runtime/bin/pip install --no-cache-dir boto3==1.44.10 \
-    && mkdir -p /data /run/redis-service && chown redis:redis /data /run/redis-service
+    && mkdir -p /data /opt/redis-runtime && chown redis:redis /data /opt/redis-runtime
 COPY supervisor.py snapshots.py /opt/service/
 USER redis
 WORKDIR /data
