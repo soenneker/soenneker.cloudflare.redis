@@ -40,6 +40,16 @@ A five-minute cron keeps the instance warm and checks for image changes. Restart
 
 Redis evicts least-recently-used keys approximately across the whole cache. The default Redis memory limit is 1,536 MiB on a 4 GiB instance. Set the Worker variable `REDIS_MAXMEMORY_MIB` to change the limit on the next start.
 
+## Docker Hub releases
+
+Set the GitHub Actions repository secret `DOCKERHUB_TOKEN` to a Docker Hub access token for `soenneker` with write access to `soenneker/cloudflare-redis`. Publish a GitHub release with a Docker-compatible tag such as `v1.2.3`. After the tests pass, the workflow pushes the tested Linux AMD64 image to Docker Hub and records its immutable digest in the job summary. The current stable GitHub release also updates the `latest` tag. Pull requests and manual build checks only build and test.
+
+```sh
+docker pull soenneker/cloudflare-redis:v1.2.3
+```
+
+Cloudflare deployment is managed by the consuming account. To use a published release with Durable Object scheduling, pull the Docker Hub image by its release digest, tag it locally, and use `wrangler containers push` from the consuming account. Set the named image in that account's Wrangler configuration to its Cloudflare registry digest. The existing `npm run deploy` path also supports building directly from this repository's Dockerfile. [Cloudflare image management](https://developers.cloudflare.com/containers/guides/image-management/#use-an-external-image)
+
 ## Verify locally
 
 With Docker, Python 3, OpenSSL, and the .NET 11 SDK installed, run `python test/cache.py` to check native Redis TLS access and cold starts after graceful shutdown and forced termination. Run `node --test test/image-update.test.js` to check image replacement and `npx wrangler deploy --dry-run` to validate the deployment bundle.
