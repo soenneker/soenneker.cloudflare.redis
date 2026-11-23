@@ -1,25 +1,45 @@
 # Soenneker.Cloudflare.Redis
 
-Run a single in-memory Redis cache on Cloudflare Containers. A Durable Object routes TLS connections to the same instance. Clients repopulate the cache from their source of truth after a restart, host loss, or image update. Use a dedicated connection string for rebuildable data. Queued jobs, shared encryption keys, and coordination state belong on a separate service that meets their durability requirements.
+Run a shared, in-memory Redis cache on Cloudflare Containers. The default deployment works without Spectrum. A loopback relay lets native Redis clients use the Worker's authenticated WebSocket endpoint. A Durable Object routes every connection to the same Redis instance.
 
-## Deploy
+## Deploy the cache
 
-1. Use a Workers Paid account with Containers and a Spectrum-enabled zone that supports Worker-origin TCP. Install Docker and Node.js 24 or newer, run `npm ci`, and authenticate Wrangler to the zone's account.
-2. Set the Worker secrets `REDIS_PASSWORD`, `TLS_CERT_PEM`, and `TLS_KEY_PEM` with `npx wrangler secret put <NAME>`. Supply the full certificate chain for the Redis hostname and the matching private key with their original line breaks.
-3. Run `npm run deploy`. Configure a Spectrum TCP application with the Worker as origin and TLS passthrough. Redis terminates TLS on port 6379. [Spectrum setup](https://developers.cloudflare.com/spectrum/how-to/route-tcp-traffic-to-a-worker/)
+1. Enable Containers on a Workers Paid account and enable its `workers.dev` subdomain. Install Docker, Node.js 24 or newer, and the repo dependencies with `npm ci`. Authenticate Wrangler to that account.
+2. Set these four Worker secrets with `npx wrangler secret put <NAME>`. Enter PEMs with their original line breaks.
 
-## Connect
+   | Secret | Purpose |
+   | --- | --- |
+   | `REDIS_PASSWORD` | Password used by the Redis client. |
+   | `TLS_CERT_PEM` | Full certificate chain Redis presents to its clients. Choose a certificate name such as `redis.internal.example.com` and trust its issuer on each client. |
+   | `TLS_KEY_PEM` | Private key matching the Redis certificate. |
+   | `REDIS_RELAY_TOKEN` | Independent, high-entropy bearer token shared by the Worker and authorized relays. Generate one with `openssl rand -hex 32`. |
 
-Configure the client with the Redis hostname and password. The client must trust the certificate issuer. For StackExchange.Redis, use a connection string like this one.
+3. Run `npm run deploy`. Take the HTTPS Worker URL printed by Wrangler, change the scheme to `wss`, and append `/redis`. For example, `wss://soenneker-cloudflare-redis.<account-subdomain>.workers.dev/redis`.
+
+## Connect without Spectrum
+
+Run the supplied relay in the same network namespace as each application that needs the cache. For separate API and Engine containers, run one relay alongside each process. All relays connect to the same cache. The Worker authenticates the relay token on each WebSocket upgrade. Redis authenticates the client on a separate TLS connection carried through the relay.
+
+1. Set `REDIS_RELAY_URL` to the full `wss://…/redis` URL and inject `REDIS_RELAY_TOKEN` into the relay's environment from your secret store.
+2. From the repo root, run `dotnet run --file relay/RedisRelay.cs` with the .NET 10 or newer SDK. To package it for a Linux container, run `dotnet publish relay/RedisRelay.cs -c Release -r linux-x64 --self-contained true -o ./out/relay`, copy the output into the application image, and start `RedisRelay` alongside the application. The relay listens on `127.0.0.1:6380`. Set `REDIS_RELAY_PORT` to choose another port.
+3. Give StackExchange.Redis the loopback endpoint and the name on the **Redis certificate**. The example certificate name is used for TLS validation even though the TCP connection goes to loopback.
 
 ```text
-redis.example.com:6379,ssl=true,password=<password>,abortConnect=false
+127.0.0.1:6380,ssl=true,sslHost=redis.internal.example.com,password=<redis-password>,abortConnect=false,connectTimeout=30000
 ```
 
-A five-minute cron keeps the instance warm and reconciles its image. When the image changes, existing connections close and the replacement starts empty. Clients can reconnect using the same hostname. Applications should handle timeouts and fetch from their backing store while the cache is unavailable. [Cloudflare container lifecycle](https://developers.cloudflare.com/containers/concepts/architecture/)
+The example allows 30 seconds for a cold connection. An existing StackExchange.Redis multiplexer can reconnect through the same loopback port after a relay restart. Commands in flight during a disconnect can fail.
 
-Redis uses approximate least-recently-used eviction across all keys. The default Redis memory limit is 1,536 MiB on a 4 GiB instance. Set `REDIS_MAXMEMORY_MIB` as a Worker variable to change the limit on the next start. Redis snapshotting and append-only logging are disabled.
+## Optional direct TCP access
+
+Use Spectrum if clients need to connect directly to a public Redis hostname. Configure a Spectrum TCP application on an eligible zone with the Worker as origin and TLS passthrough. Use a certificate valid for the public Redis hostname. Direct clients can then connect with `redis.example.com:6379,ssl=true,password=<redis-password>,abortConnect=false`. For a direct-TCP-only deployment, set `workers_dev` to `false` and omit the relay token. [Cloudflare Spectrum setup](https://developers.cloudflare.com/spectrum/how-to/route-tcp-traffic-to-a-worker/)
+
+## Cache lifecycle
+
+A five-minute cron keeps the instance warm and checks for image changes. Restarts and image replacements disconnect clients and start with an empty dataset. Use this endpoint for data the application can rebuild on a miss. Keep queued jobs, shared encryption keys, and coordination state on a service with the durability they require. [Cloudflare container lifecycle](https://developers.cloudflare.com/containers/concepts/architecture/)
+
+Redis evicts least-recently-used keys approximately across the whole cache. The default Redis memory limit is 1,536 MiB on a 4 GiB instance. Set the Worker variable `REDIS_MAXMEMORY_MIB` to change the limit on the next start.
 
 ## Verify locally
 
-With Docker, Python 3, OpenSSL, and the .NET 11 SDK installed, run `python test/cache.py` to check TLS access, ordinary cache operations, and cold starts after both graceful shutdown and a forced kill. Run `node --test test/image-update.test.js` to check image replacement and `npx wrangler deploy --dry-run` to validate the deployment bundle.
+With Docker, Python 3, OpenSSL, and the .NET 11 SDK installed, run `python test/cache.py` to check native Redis TLS access and cold starts after graceful shutdown and forced termination. Run `node --test test/image-update.test.js` to check image replacement and `npx wrangler deploy --dry-run` to validate the deployment bundle.

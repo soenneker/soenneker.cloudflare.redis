@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { replaceIfNeeded } from "./image-update.js";
+import { upgradeRedis } from "./redis-websocket.js";
 
 const REDIS_PORT = 6379;
 const IDLE_MS = 30 * 60 * 1000;
@@ -81,7 +82,5 @@ export default {
     async scheduled(_event, env) {
         await env.REDIS_HOST.getByName("primary").maintain();
     },
-    fetch() {
-        return new Response("Use the Redis TLS endpoint.", { status: 404 });
-    },
+    fetch: upgradeRedis,
 };
