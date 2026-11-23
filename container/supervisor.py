@@ -1,4 +1,3 @@
-import hashlib
 import http.server
 import os
 from pathlib import Path
@@ -35,7 +34,7 @@ class RedisService:
             "port 0", "daemonize no", "maxmemory-policy noeviction",
             f"maxmemory {int(os.environ.get('REDIS_MAXMEMORY_MIB', '1536'))}mb",
             f"unixsocket {SOCKET}", "unixsocketperm 600",
-            "user supervisor on #" + self.hash(self.admin) + " ~* &* +@all",
+            f"user supervisor on {self.acl_password(self.admin)} ~* &* +@all",
         ]
         if seed:
             config.append("user default off")
@@ -49,16 +48,18 @@ class RedisService:
                 "bind 0.0.0.0", "tls-port 6379", "tls-auth-clients no",
                 f"tls-cert-file {RUNTIME}/tls.pem", f"tls-key-file {RUNTIME}/tls.key",
                 # The app can use scripts, streams, pub/sub, and normal Redis data commands.
-                "user default reset on #" + self.hash(password) +
+                "user default reset on " + self.acl_password(password) +
                 " ~* &* +@all -@admin -@dangerous +info +client|setname +client|setinfo"
                 " +client|id +client|list +cluster|nodes +cluster|slots +keys +scan +eval +evalsha +script|load",
             ])
-        self.config = RUNTIME / "redis.conf"
-        self.config.write_text("\n".join(config) + "\n")
+        self.config = ("\n".join(config) + "\n").encode()
 
     @staticmethod
-    def hash(value):
-        return hashlib.sha256(value.encode()).hexdigest()
+    def acl_password(value):
+        # Quote arbitrary UTF-8 bytes in Redis config syntax. Redis consumes the
+        # ACL password from a private pipe and handles its native representation.
+        escaped = "".join(f"\\x{byte:02x}" for byte in value.encode())
+        return f'">{escaped}"'
 
     def command(self, *args):
         return subprocess.check_output(
@@ -67,7 +68,10 @@ class RedisService:
             text=True).strip()
 
     def start(self):
-        self.process = subprocess.Popen(["redis-server", str(self.config)], env={"PATH": os.environ["PATH"]})
+        self.process = subprocess.Popen(["redis-server", "-"], stdin=subprocess.PIPE,
+                                       env={"PATH": os.environ["PATH"]})
+        with self.process.stdin as config_pipe:
+            config_pipe.write(self.config)
         while self.process.poll() is None:
             if Path(SOCKET).exists():
                 try:
