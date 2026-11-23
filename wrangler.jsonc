@@ -3,7 +3,7 @@
     "name": "soenneker-cloudflare-redis",
     "main": "worker/index.js",
     "compatibility_date": "2026-11-19",
-    "workers_dev": false,
+    "workers_dev": true,
     "preview_urls": false,
     "triggers": { "crons": ["*/5 * * * *"] },
     "containers": [{
@@ -12,6 +12,5 @@
         "images": { "redis": { "dockerfile": "./container/Dockerfile" } }
     }],
     "durable_objects": { "bindings": [{ "name": "REDIS_HOST", "class_name": "RedisHost" }] },
-    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RedisHost"] }],
-    "vars": { "R2_KEY": "redis/dump.rdb", "BACKUP_INTERVAL_SECONDS": "60" }
+    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RedisHost"] }]
 }
