@@ -1,4 +1,4 @@
-FROM redis:8.2-bookworm@sha256:b0b01167ff47bc3868e56a967895a26be4230891a1f42a78ab61cdd227accc8d
+FROM redis:8.4-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78
 RUN apt-get update && apt-get install -y --no-install-recommends python3-venv ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/runtime \
