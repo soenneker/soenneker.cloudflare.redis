@@ -1,12 +1,18 @@
 name: build-and-test
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'container/**'
+      - '.gitattributes'
+      - '.github/workflows/build-and-test.yml'
   pull_request:
     branches: [main]
   workflow_dispatch:
   release:
     types: [published]
 concurrency:
-  group: build-and-test-${{ github.event_name == 'release' && 'publish-images' || github.run_id }}
+  group: build-and-test-${{ (github.event_name == 'push' || github.event_name == 'release') && 'publish-images' || github.run_id }}
   queue: max
 permissions:
   contents: read
@@ -30,7 +36,7 @@ jobs:
       - run: dotnet build relay/RedisRelay.cs -c Release
       - run: python3 test/cache.py
       - name: Publish tested image to Docker Hub
-        if: github.event_name == 'release'
+        if: github.event_name == 'push' || github.event_name == 'release'
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           PRERELEASE: ${{ github.event.release.prerelease }}
@@ -40,6 +46,9 @@ jobs:
         run: |
           set -euo pipefail
           : "${DOCKERHUB_TOKEN:?Set the DOCKERHUB_TOKEN Actions secret}"
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            RELEASE_TAG="sha-$GITHUB_SHA"
+          fi
           if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ || "$RELEASE_TAG" == latest ]]; then
             echo "::error::Use a Docker-compatible release tag such as v1.2.3."
             exit 1
@@ -54,12 +63,19 @@ jobs:
           digest=$(docker buildx imagetools inspect "$hub_repo:$RELEASE_TAG" --format '{{.Manifest.Digest}}')
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "Docker Hub image: \`$hub_repo@$digest\` (tag \`$RELEASE_TAG\`)" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$PRERELEASE" == false ]]; then
-            latest_tag=$(gh api graphql -F owner="$GITHUB_REPOSITORY_OWNER" -F name="${GITHUB_REPOSITORY#*/}" \
-              -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { latestRelease { tagName } } }' \
-              --jq '.data.repository.latestRelease.tagName // ""')
-            if [[ "$latest_tag" == "$RELEASE_TAG" ]]; then
-              docker tag "$tested_image" "$hub_repo:latest"
-              docker push "$hub_repo:latest"
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            # A retried older build may publish its own tag, but must not roll latest back.
+            git fetch --quiet --depth=1 origin refs/heads/main
+            changed=$(git diff --name-only "$GITHUB_SHA" FETCH_HEAD -- container .gitattributes .github/workflows/build-and-test.yml)
+            if [[ -n "$changed" ]]; then
+              echo "A newer image build is on main. Keeping its latest tag."
+              exit 0
             fi
+          elif [[ "$PRERELEASE" == true ]]; then
+            exit 0
+          else
+            latest_tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+            [[ "$latest_tag" == "$RELEASE_TAG" ]] || exit 0
           fi
+          docker tag "$tested_image" "$hub_repo:latest"
+          docker push "$hub_repo:latest"
